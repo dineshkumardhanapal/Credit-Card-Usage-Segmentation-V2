@@ -13,6 +13,7 @@
         .profile-container { flex: 1; }
         .profile-details { border: 1px solid #ccc; padding: 10px; }
         .error { color: red; }
+        .debug { font-size: 12px; color: #666; }
     </style>
 </head>
 <body>
@@ -25,6 +26,7 @@
             <p>Click on a data point to view the customer's profile.</p>
             <div id="pcaChart"></div>
             <div id="errorMessage" class="error"></div>
+            <div id="debugInfo" class="debug"></div>
         </div>
 
         <div class="profile-container">
@@ -42,17 +44,20 @@
     </div>
 
     <script>
-        // Function to display errors on the page
         function showError(message) {
             document.getElementById('errorMessage').textContent = message;
         }
 
-        // Load the CSV file
-        console.log('Loading CSV...');
-        d3.csv('customer_segments_for_dashboard.csv').then(data => {
-            console.log('CSV loaded successfully, data length:', data.length);
+        function updateDebug(message) {
+            document.getElementById('debugInfo').textContent = message;
+        }
 
-            // Convert string numbers to float and handle potential NaN
+        console.log('Starting script execution at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        updateDebug('Loading CSV...');
+        d3.csv('customer_segments_for_dashboard.csv').then(data => {
+            updateDebug(`CSV loaded, rows: ${data.length}`);
+            console.log('CSV data loaded:', data.length);
+
             data.forEach(d => {
                 d.PC1 = +d.PC1 || 0;
                 d.PC2 = +d.PC2 || 0;
@@ -62,10 +67,14 @@
                 d.CREDIT_USAGE_RATIO = +d.CREDIT_USAGE_RATIO || 0;
             });
 
-            // Log first few rows for debugging
             console.log('Sample data:', data.slice(0, 5));
+            updateDebug('Data parsed, sample checked in console');
 
-            // Prepare trace for Plotly
+            if (data.length === 0) {
+                showError('No data loaded from CSV.');
+                return;
+            }
+
             const trace = {
                 x: data.map(d => d.PC1),
                 y: data.map(d => d.PC2),
@@ -81,15 +90,15 @@
                 yaxis: { title: 'PC2' }
             };
 
-            console.log('Rendering Plotly chart...');
+            updateDebug('Attempting to render chart...');
             Plotly.newPlot('pcaChart', [trace], layout).then(() => {
-                console.log('Chart rendered successfully');
+                updateDebug('Chart rendered successfully');
+                console.log('Chart rendered');
             }).catch(err => {
                 console.error('Plotly render error:', err);
-                showError('Error rendering chart: ' + err.message);
+                showError('Chart rendering failed: ' + err.message);
             });
 
-            // Click event to update profile
             document.getElementById('pcaChart').on('plotly_click', function(data) {
                 const point = data.points[0];
                 const index = point.pointNumber;
@@ -98,11 +107,12 @@
                 document.getElementById('purchases').textContent = `$${data[index].PURCHASES.toFixed(2)}` || 'N/A';
                 document.getElementById('creditUsage').textContent = `${data[index].CREDIT_USAGE_RATIO.toFixed(2)}` || 'N/A';
                 document.getElementById('cluster').textContent = data[index].Cluster || 'N/A';
-                console.log('Clicked point index:', index, 'Data:', data[index]);
+                console.log('Clicked point:', index, data[index]);
             });
         }).catch(error => {
-            console.error('Error loading CSV:', error);
-            showError('Error loading data: ' + error.message);
+            console.error('CSV load error:', error);
+            showError('Failed to load CSV: ' + error.message);
+            updateDebug('Check console for details');
         });
     </script>
 </body>
