@@ -85,16 +85,17 @@
         document.addEventListener('DOMContentLoaded', () => {
             const dataPath = 'customer_segments_for_dashboard.csv';
 
-            // Use Papa Parse to fetch and parse the CSV data from the local file
+            // Use Papa Parse to fetch and parse the CSV data
             Papa.parse(dataPath, {
                 download: true,
                 header: true,
-                dynamicTyping: true, // Automatically convert strings to numbers where possible
+                dynamicTyping: true, // Automatically convert numbers
                 complete: function(results) {
-                    if (results.data && results.data.length > 0) {
+                    console.log("Data loaded and parsed:", results.data);
+                    if (results.data) {
                         renderChart(results.data);
                     } else {
-                        alert("Could not load or parse data. Please check the CSV file and its path.");
+                        alert("Could not load or parse data. Please check the CSV file and path.");
                     }
                 },
                 error: function(error) {
@@ -104,16 +105,17 @@
             });
         });
 
-        // Function to render the main scatter plot using Chart.js
+        // Function to render the main scatter plot
         function renderChart(data) {
             const ctx = document.getElementById('customerScatterPlot').getContext('2d');
 
-            // Define colors for the 4 clusters
+            // Define colors for the clusters
             const clusterColors = {
                 0: 'rgba(75, 192, 192, 0.8)',  // Teal
                 1: 'rgba(255, 99, 132, 0.8)',  // Red
                 2: 'rgba(54, 162, 235, 0.8)',  // Blue
                 3: 'rgba(255, 206, 86, 0.8)',  // Yellow
+                // Add more colors if you have more clusters
             };
 
             const clusterBackgroundColors = {
@@ -123,12 +125,9 @@
                 3: 'rgba(255, 206, 86, 0.2)',
             };
 
-            // Prepare a dataset for each cluster
+            // Prepare datasets for Chart.js
             const datasets = Object.keys(clusterColors).map(clusterId => {
-                // Filter the data to get points belonging to the current cluster
-                // Note: The column name is 'CLUSTER' as defined in the final Python script
-                const points = data.filter(row => row && row.CLUSTER == clusterId);
-
+                const points = data.filter(row => row.CLUSTER == clusterId);
                 return {
                     label: `Segment ${clusterId}`,
                     data: points.map(p => ({ x: p.PCA1, y: p.PCA2, fullData: p })),
@@ -136,15 +135,18 @@
                 };
             });
 
-            // Create the scatter chart
             const scatterChart = new Chart(ctx, {
                 type: 'scatter',
-                data: { datasets: datasets },
+                data: {
+                    datasets: datasets
+                },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: {
+                            position: 'top',
+                        },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
@@ -156,11 +158,20 @@
                         }
                     },
                     scales: {
-                        x: { title: { display: true, text: 'Principal Component 1' } },
-                        y: { title: { display: true, text: 'Principal Component 2' } }
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Principal Component 1'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Principal Component 2'
+                            }
+                        }
                     },
                     onClick: (event, elements) => {
-                        // When a point is clicked, update the profile card
                         if (elements.length > 0) {
                             const element = elements[0];
                             const pointData = scatterChart.data.datasets[element.datasetIndex].data[element.index];
@@ -173,20 +184,25 @@
 
         // Function to update the profile card on the right
         function updateProfile(customerData, colors, bgColors) {
+            // Hide the initial instruction message
             document.getElementById('instruction-message').classList.add('hidden');
-            document.getElementById('profile-content').classList.remove('hidden');
 
-            // Set the cluster badge text and color
+            // Show the profile content
+            const profileContent = document.getElementById('profile-content');
+            profileContent.classList.remove('hidden');
+
+            // Update cluster badge
             const clusterBadge = document.getElementById('cluster-badge');
             clusterBadge.textContent = `SEGMENT ${customerData.CLUSTER}`;
             clusterBadge.style.backgroundColor = bgColors[customerData.CLUSTER];
             clusterBadge.style.color = colors[customerData.CLUSTER];
             clusterBadge.style.border = `1px solid ${colors[customerData.CLUSTER]}`;
 
-            // Set the customer ID
+
+            // Update customer ID
             document.getElementById('cust-id').textContent = customerData.CUST_ID;
 
-            // Populate the details section
+            // Update profile details
             const detailsContainer = document.getElementById('profile-details');
             const detailsToShow = {
                 'Balance': customerData.BALANCE.toFixed(2),
