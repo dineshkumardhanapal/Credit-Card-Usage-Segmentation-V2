@@ -14,6 +14,7 @@
         .profile-details { border: 1px solid #ccc; padding: 10px; }
         .error { color: red; }
         .debug { font-size: 12px; color: #666; }
+        .fallback { border: 1px solid #ddd; padding: 10px; margin-top: 10px; max-height: 200px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -27,6 +28,7 @@
             <div id="pcaChart"></div>
             <div id="errorMessage" class="error"></div>
             <div id="debugInfo" class="debug"></div>
+            <div id="fallbackData" class="fallback" style="display:none;">Fallback Data: <pre id="rawData"></pre></div>
         </div>
 
         <div class="profile-container">
@@ -52,7 +54,7 @@
             document.getElementById('debugInfo').textContent = message;
         }
 
-        console.log('Starting script execution at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        console.log('Script execution started at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
         updateDebug('Loading CSV...');
         d3.csv('customer_segments_for_dashboard.csv').then(data => {
             updateDebug(`CSV loaded, rows: ${data.length}`);
@@ -97,6 +99,9 @@
             }).catch(err => {
                 console.error('Plotly render error:', err);
                 showError('Chart rendering failed: ' + err.message);
+                // Show fallback data if Plotly fails
+                document.getElementById('fallbackData').style.display = 'block';
+                document.getElementById('rawData').textContent = JSON.stringify(data.slice(0, 10), null, 2);
             });
 
             document.getElementById('pcaChart').on('plotly_click', function(data) {
