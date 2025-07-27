@@ -3,121 +3,479 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Credit Card Customer Segmentation</title>
-    <script src="https://cdn.plotly.com/plotly-latest.min.js"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <title>Credit Card Customer Segmentation Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        .container { display: flex; gap: 20px; }
-        .chart-container { flex: 1; }
-        .profile-container { flex: 1; }
-        .profile-details { border: 1px solid #ccc; padding: 10px; }
-        .error { color: red; }
-        .debug { font-size: 12px; color: #666; }
-        .fallback { border: 1px solid #ddd; padding: 10px; margin-top: 10px; max-height: 200px; overflow-y: auto; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 1rem; /* Rounded corners */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem;
+        }
+        .btn-primary {
+            background-color: #4f46e5; /* Indigo 600 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca; /* Indigo 700 */
+        }
+        /* Custom styles for the segment profile box */
+        .segment-profile-box {
+            border: 2px dashed #d1d5db; /* Gray 300 */
+            border-radius: 1rem;
+            min-height: 250px; /* Ensure it has some height */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 1rem;
+        }
+        .segment-profile-box.active {
+            border-color: #6366f1; /* Indigo 500 when active */
+        }
     </style>
 </head>
-<body>
-    <h1>Credit Card Customer Segmentation</h1>
-    <h2>Interactive Dashboard to Explore Customer Personas</h2>
+<body class="min-h-screen flex flex-col items-center p-4">
+    <header class="w-full max-w-6xl text-center py-8">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Credit Card Customer Segmentation</h1>
+        <p class="text-lg text-gray-600">Interactive Dashboard to Explore Customer Personas</p>
+    </header>
 
-    <div class="container">
-        <div class="chart-container">
-            <h3>Customer Segments (PCA Visualization)</h3>
-            <p>Click on a data point to view the customer's profile.</p>
-            <div id="pcaChart"></div>
-            <div id="errorMessage" class="error"></div>
-            <div id="debugInfo" class="debug"></div>
-            <div id="fallbackData" class="fallback" style="display:none;">Fallback Data: <pre id="rawData"></pre></div>
-        </div>
-
-        <div class="profile-container">
-            <h3>Segment Profile</h3>
-            <div class="profile-details">
-                <p><strong>Select a Customer</strong></p>
-                <p>Click on a point in the chart to see details here.</p>
-                <p><strong>Customer ID:</strong> <span id="custId"></span></p>
-                <p><strong>Balance:</strong> <span id="balance"></span></p>
-                <p><strong>Purchases:</strong> <span id="purchases"></span></p>
-                <p><strong>Credit Usage Ratio:</strong> <span id="creditUsage"></span></p>
-                <p><strong>Cluster:</strong> <span id="cluster"></span></p>
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Customer Segments (PCA Visualization) -->
+        <section id="cluster-visualization-section" class="card lg:col-span-2">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Customer Segments (PCA Visualization)</h2>
+            <p class="text-gray-700 text-sm mb-4">Click on a data point to view the customer's profile.</p>
+            <div id="loading-indicator" class="text-center text-indigo-600 font-medium py-4 hidden">
+                <p>Simulating data and DBSCAN clustering...</p>
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mt-4"></div>
             </div>
-        </div>
-    </div>
+            <div class="h-96">
+                <canvas id="clusterScatterChart"></canvas>
+            </div>
+            <div class="mt-4 text-center">
+                <button id="runSegmentationBtn" class="btn-primary">Run DBSCAN Simulation</button>
+            </div>
+        </section>
+
+        <!-- Right Column: Segment Profile -->
+        <section id="segment-profile-section" class="card lg:col-span-1">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Segment Profile</h2>
+            <div id="segment-profile-content" class="segment-profile-box">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <p class="text-gray-500">Select a Customer</p>
+                <p class="text-gray-500 text-sm">Click on a point in the chart to see details here.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="w-full max-w-6xl text-center py-6 text-gray-500 text-sm mt-8">
+        <p>&copy; 2023 Credit Card Segmentation Analysis. All rights reserved.</p>
+    </footer>
 
     <script>
-        function showError(message) {
-            document.getElementById('errorMessage').textContent = message;
-        }
+        // Global Chart instance
+        let clusterScatterChartInstance = null;
+        let allSimulatedDataPoints = []; // Store all data points with their original features and cluster labels
 
-        function updateDebug(message) {
-            document.getElementById('debugInfo').textContent = message;
-        }
+        // Feature names from your dataset (excluding CUST_ID)
+        const featureNames = [
+            'BALANCE', 'BALANCE_FREQUENCY', 'PURCHASES', 'ONEOFF_PURCHASES',
+            'INSTALLMENTS_PURCHASES', 'CASH_ADVANCE', 'PURCHASES_FREQUENCY',
+            'ONEOFF_PURCHASES_FREQUENCY', 'PURCHASES_INSTALLMENTS_FREQUENCY',
+            'CASH_ADVANCE_FREQUENCY', 'CASH_ADVANCE_TRX', 'PURCHASES_TRX',
+            'CREDIT_LIMIT', 'PAYMENTS', 'MINIMUM_PAYMENTS', 'PRC_FULL_PAYMENT', 'TENURE'
+        ];
 
-        console.log('Script execution started at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-        updateDebug('Loading CSV...');
-        d3.csv('customer_segments_for_dashboard.csv').then(data => {
-            updateDebug(`CSV loaded, rows: ${data.length}`);
-            console.log('CSV data loaded:', data.length);
+        document.getElementById('runSegmentationBtn').addEventListener('click', async function () {
+            // Show loading indicator
+            document.getElementById('loading-indicator').classList.remove('hidden');
+            document.getElementById('clusterScatterChart').classList.add('hidden');
+            document.getElementById('segment-profile-content').innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <p class="text-gray-500">Select a Customer</p>
+                <p class="text-gray-500 text-sm">Click on a point in the chart to see details here.</p>
+            `;
+            document.getElementById('segment-profile-content').classList.remove('active');
 
-            data.forEach(d => {
-                d.PC1 = +d.PC1 || 0;
-                d.PC2 = +d.PC2 || 0;
-                d.Cluster = +d.Cluster || 0;
-                d.BALANCE = +d.BALANCE || 0;
-                d.PURCHASES = +d.PURCHASES || 0;
-                d.CREDIT_USAGE_RATIO = +d.CREDIT_USAGE_RATIO || 0;
-            });
 
-            console.log('Sample data:', data.slice(0, 5));
-            updateDebug('Data parsed, sample checked in console');
+            // Simulate data and clustering after a short delay to show loading
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
-            if (data.length === 0) {
-                showError('No data loaded from CSV.');
-                return;
+            const numCustomers = 500; // Fixed number of simulated customers for dashboard
+            const randomSeed = 42;    // Fixed seed for reproducibility
+
+            const simulatedData = simulateData(numCustomers, randomSeed);
+            allSimulatedDataPoints = simulatedData.dataWithFeatures; // Store for segment profile
+            const clusteringResults = runDBSCANSimulation(simulatedData.pcaComponents);
+
+            // Hide loading indicator
+            document.getElementById('loading-indicator').classList.add('hidden');
+            document.getElementById('clusterScatterChart').classList.remove('hidden');
+
+            renderClusterScatterPlot(simulatedData.pcaComponents, clusteringResults.dbscanLabels);
+        });
+
+        /**
+         * Simulates credit card customer data with some inherent clusters and noise for DBSCAN.
+         * This function mimics the output of data preprocessing and PCA.
+         * @param {number} numCustomers - Number of customer data points to simulate.
+         * @param {number} seed - Random seed for reproducibility.
+         * @returns {object} - An object containing simulated 2D PCA components and original-like features.
+         */
+        function simulateData(numCustomers, seed) {
+            // Seed the random number generator for reproducibility
+            Math.seedrandom = function(s) {
+                var x = Math.sin(s++) * 10000;
+                return x - Math.floor(x);
+            };
+            Math.random = Math.seedrandom(seed);
+
+            const pcaComponents = []; // Simulated 2D PCA components for visualization
+            const dataWithFeatures = []; // Store original-like features for segment profile
+
+            // Simulate 3 distinct clusters and some noise
+            const clusterCenters = [
+                { x: 1, y: 1, type: 'cluster', features: { BALANCE: 500, PURCHASES: 1000, CREDIT_LIMIT: 3000, PAYMENTS: 500, PRC_FULL_PAYMENT: 0.8, TENURE: 24 } }, // Low activity, high full payment
+                { x: 5, y: 5, type: 'cluster', features: { BALANCE: 5000, PURCHASES: 8000, CREDIT_LIMIT: 15000, PAYMENTS: 4000, PRC_FULL_PAYMENT: 0.2, TENURE: 48 } }, // High activity, revolving credit
+                { x: 3, y: 0.5, type: 'cluster', features: { BALANCE: 2000, PURCHASES: 100, CREDIT_LIMIT: 8000, PAYMENTS: 1000, PRC_FULL_PAYMENT: 0.5, TENURE: 36 } } // Balance transfers/cash advance focused
+            ];
+
+            for (let i = 0; i < numCustomers; i++) {
+                let currentPcaX, currentPcaY;
+                let currentFeatures = {};
+
+                // Introduce some noise points (e.g., 10% of data)
+                if (Math.random() < 0.1) {
+                    // Noise point
+                    currentPcaX = Math.random() * 10 - 2; // Spread across a wider range
+                    currentPcaY = Math.random() * 10 - 2;
+                    // Simulate extreme features for noise
+                    currentFeatures = {
+                        BALANCE: Math.random() * 20000,
+                        PURCHASES: Math.random() * 15000,
+                        ONEOFF_PURCHASES: Math.random() * 10000,
+                        INSTALLMENTS_PURCHASES: Math.random() * 5000,
+                        CASH_ADVANCE: Math.random() * 8000,
+                        CREDIT_LIMIT: Math.random() * 30000,
+                        PAYMENTS: Math.random() * 10000,
+                        MINIMUM_PAYMENTS: Math.random() * 2000,
+                        PRC_FULL_PAYMENT: Math.random(),
+                        TENURE: Math.floor(12 + Math.random() * 60),
+                        BALANCE_FREQUENCY: Math.random(),
+                        PURCHASES_FREQUENCY: Math.random(),
+                        ONEOFF_PURCHASES_FREQUENCY: Math.random(),
+                        PURCHASES_INSTALLMENTS_FREQUENCY: Math.random(),
+                        CASH_ADVANCE_FREQUENCY: Math.random(),
+                        CASH_ADVANCE_TRX: Math.floor(Math.random() * 20),
+                        PURCHASES_TRX: Math.floor(Math.random() * 50)
+                    };
+                } else {
+                    // Cluster point
+                    const clusterIdx = Math.floor(Math.random() * clusterCenters.length);
+                    const center = clusterCenters[clusterIdx];
+
+                    currentPcaX = center.x + (Math.random() - 0.5) * 0.8;
+                    currentPcaY = center.y + (Math.random() - 0.5) * 0.8;
+
+                    // Simulate features with some noise around cluster centers
+                    currentFeatures = {
+                        BALANCE: center.features.BALANCE + (Math.random() - 0.5) * 1000,
+                        PURCHASES: center.features.PURCHASES + (Math.random() - 0.5) * 2000,
+                        ONEOFF_PURCHASES: center.features.PURCHASES * (0.3 + Math.random() * 0.4), // Proportion of total purchases
+                        INSTALLMENTS_PURCHASES: center.features.PURCHASES * (0.3 + Math.random() * 0.4),
+                        CASH_ADVANCE: (center.features.CASH_ADVANCE || 0) + (Math.random() - 0.5) * 500,
+                        CREDIT_LIMIT: center.features.CREDIT_LIMIT + (Math.random() - 0.5) * 5000,
+                        PAYMENTS: center.features.PAYMENTS + (Math.random() - 0.5) * 1000,
+                        MINIMUM_PAYMENTS: (center.features.BALANCE * 0.05) + (Math.random() - 0.5) * 100,
+                        PRC_FULL_PAYMENT: (center.features.PRC_FULL_PAYMENT || 0) + (Math.random() - 0.5) * 0.2,
+                        TENURE: center.features.TENURE + Math.floor((Math.random() - 0.5) * 12),
+                        BALANCE_FREQUENCY: 0.8 + (Math.random() * 0.2), // High frequency for active users
+                        PURCHASES_FREQUENCY: 0.5 + (Math.random() * 0.5),
+                        ONEOFF_PURCHASES_FREQUENCY: 0.2 + (Math.random() * 0.3),
+                        PURCHASES_INSTALLMENTS_FREQUENCY: 0.2 + (Math.random() * 0.3),
+                        CASH_ADVANCE_FREQUENCY: (center.features.CASH_ADVANCE > 0 ? 0.1 + Math.random() * 0.2 : Math.random() * 0.05),
+                        CASH_ADVANCE_TRX: Math.floor(currentFeatures.CASH_ADVANCE_FREQUENCY * 10),
+                        PURCHASES_TRX: Math.floor(currentFeatures.PURCHASES_FREQUENCY * 20)
+                    };
+                }
+
+                // Ensure values are non-negative and within reasonable bounds
+                for (const key in currentFeatures) {
+                    if (typeof currentFeatures[key] === 'number') {
+                        currentFeatures[key] = Math.max(0, currentFeatures[key]);
+                        if (key.includes('FREQUENCY') || key.includes('PRC_FULL_PAYMENT')) {
+                            currentFeatures[key] = Math.min(1, currentFeatures[key]);
+                        }
+                    }
+                }
+
+                pcaComponents.push({ x: currentPcaX, y: currentPcaY });
+                dataWithFeatures.push(currentFeatures);
             }
 
-            const trace = {
-                x: data.map(d => d.PC1),
-                y: data.map(d => d.PC2),
-                mode: 'markers',
+            return { pcaComponents: pcaComponents, dataWithFeatures: dataWithFeatures };
+        }
+
+        /**
+         * Simulates DBSCAN clustering on the PCA components.
+         * This function mimics DBSCAN's behavior including noise points (-1).
+         * @param {Array<object>} pcaComponents - Array of objects with x, y properties.
+         * @returns {object} - An object containing simulated DBSCAN labels.
+         */
+        function runDBSCANSimulation(pcaComponents) {
+            // Simulate DBSCAN labels based on the spatial distribution of pcaComponents
+            // For simplicity, we'll assign labels based on proximity to simulated cluster centers
+            // and mark some as noise.
+            const dbscanLabels = [];
+            const simulatedClusters = [
+                { x: 1, y: 1, label: 0 },
+                { x: 5, y: 5, label: 1 },
+                { x: 3, y: 0.5, label: 2 }
+            ];
+
+            pcaComponents.forEach(point => {
+                let assignedLabel = -1; // Default to noise
+                let minDistance = Infinity;
+
+                simulatedClusters.forEach(clusterCenter => {
+                    const dist = Math.sqrt(
+                        Math.pow(point.x - clusterCenter.x, 2) +
+                        Math.pow(point.y - clusterCenter.y, 2)
+                    );
+                    // A simple threshold to assign to a cluster or noise
+                    if (dist < 1.5 && dist < minDistance) { // 1.5 is a mock epsilon
+                        minDistance = dist;
+                        assignedLabel = clusterCenter.label;
+                    }
+                });
+                dbscanLabels.push(assignedLabel);
+            });
+
+            return { dbscanLabels: dbscanLabels };
+        }
+
+        /**
+         * Renders a scatter plot of clusters using Chart.js.
+         * @param {Array<object>} dataPoints - Array of objects with x, y properties (PCA components).
+         * @param {Array<number>} clusterLabels - Array of cluster assignments for each data point (DBSCAN labels).
+         */
+        function renderClusterScatterPlot(dataPoints, clusterLabels) {
+            const ctx = document.getElementById('clusterScatterChart').getContext('2d');
+
+            if (clusterScatterChartInstance) {
+                clusterScatterChartInstance.destroy(); // Destroy existing chart instance if any
+            }
+
+            // Get unique cluster labels, including -1 for noise
+            const uniqueClusters = [...new Set(clusterLabels)].sort((a, b) => a - b);
+
+            const datasets = uniqueClusters.map(clusterId => {
+                const pointsInCluster = dataPoints.filter((_, idx) => clusterLabels[idx] === clusterId);
+                const data = pointsInCluster.map(p => ({ x: p.x, y: p.y }));
+
+                // Define colors for clusters and black for noise (-1)
+                const colors = [
+                    'rgba(239, 68, 68, 0.7)',   // Red (Cluster 0)
+                    'rgba(34, 197, 94, 0.7)',   // Green (Cluster 1)
+                    'rgba(59, 130, 246, 0.7)',  // Blue (Cluster 2)
+                    'rgba(245, 158, 11, 0.7)',  // Orange (Cluster 3)
+                    'rgba(139, 92, 246, 0.7)',  // Purple (Cluster 4)
+                    'rgba(6, 182, 212, 0.7)',   // Cyan (Cluster 5)
+                    'rgba(236, 72, 153, 0.7)',  // Pink (Cluster 6)
+                    'rgba(107, 114, 128, 0.7)'  // Gray (Cluster 7)
+                ];
+                const borderColor = [
+                    'rgba(239, 68, 68, 1)',
+                    'rgba(34, 197, 94, 1)',
+                    'rgba(59, 130, 246, 1)',
+                    'rgba(245, 158, 11, 1)',
+                    'rgba(139, 92, 246, 1)',
+                    'rgba(6, 182, 212, 1)',
+                    'rgba(236, 72, 153, 1)',
+                    'rgba(107, 114, 128, 1)'
+                ];
+
+                let backgroundColor, borderCol;
+                let labelText;
+
+                if (clusterId === -1) {
+                    backgroundColor = 'rgba(0, 0, 0, 0.5)'; // Black for noise
+                    borderCol = 'rgba(0, 0, 0, 1)';
+                    labelText = 'Noise (-1)';
+                } else {
+                    backgroundColor = colors[clusterId % colors.length];
+                    borderCol = borderColor[clusterId % borderColor.length];
+                    labelText = `Segment ${clusterId}`;
+                }
+
+                return {
+                    label: labelText,
+                    data: data,
+                    backgroundColor: backgroundColor,
+                    borderColor: borderCol,
+                    borderWidth: 1,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    // Store original index to retrieve full data later
+                    originalIndices: dataPoints.map((p, idx) => clusterLabels[idx] === clusterId ? idx : -1).filter(idx => idx !== -1)
+                };
+            });
+
+            clusterScatterChartInstance = new Chart(ctx, {
                 type: 'scatter',
-                text: data.map(d => `ID: ${d.CUST_ID}<br>Balance: $${d.BALANCE.toFixed(2)}<br>Purchases: $${d.PURCHASES.toFixed(2)}<br>Ratio: ${d.CREDIT_USAGE_RATIO.toFixed(2)}`),
-                marker: { size: 10, color: data.map(d => d.Cluster), colorscale: 'Viridis' }
-            };
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Principal Component 1'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)' // Lighter grid lines
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Principal Component 2'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)' // Lighter grid lines
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top', // Position legend at the top as in the image
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 10, // Smaller legend boxes
+                                padding: 15,
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.dataset.label || '';
+                                    const x = context.parsed.x.toFixed(2);
+                                    const y = context.parsed.y.toFixed(2);
+                                    return `${label} (PC1: ${x}, PC2: ${y})`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const firstElement = elements[0];
+                            const datasetIndex = firstElement.datasetIndex;
+                            const dataIndex = firstElement.index;
 
-            const layout = {
-                title: 'Customer Segments (PCA Visualization)',
-                xaxis: { title: 'PC1' },
-                yaxis: { title: 'PC2' }
-            };
+                            // Get the original index of the clicked point from the dataset's stored indices
+                            const originalDataIndex = clusterScatterChartInstance.data.datasets[datasetIndex].originalIndices[dataIndex];
 
-            updateDebug('Attempting to render chart...');
-            Plotly.newPlot('pcaChart', [trace], layout).then(() => {
-                updateDebug('Chart rendered successfully');
-                console.log('Chart rendered');
-            }).catch(err => {
-                console.error('Plotly render error:', err);
-                showError('Chart rendering failed: ' + err.message);
-                // Show fallback data if Plotly fails
-                document.getElementById('fallbackData').style.display = 'block';
-                document.getElementById('rawData').textContent = JSON.stringify(data.slice(0, 10), null, 2);
+                            if (originalDataIndex !== undefined) {
+                                const selectedDataPoint = allSimulatedDataPoints[originalDataIndex];
+                                const selectedClusterId = clusterLabels[originalDataIndex];
+                                displaySegmentProfile(selectedDataPoint, selectedClusterId);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Displays the segment profile based on the selected data point.
+         * @param {object} dataPoint - The full simulated data point (features).
+         * @param {number} clusterId - The cluster ID of the selected point.
+         */
+        function displaySegmentProfile(dataPoint, clusterId) {
+            const profileContentDiv = document.getElementById('segment-profile-content');
+            profileContentDiv.classList.add('active'); // Add active class for styling
+
+            let profileHtml = `
+                <h4 class="text-xl font-bold text-gray-800 mb-3">Customer Profile</h4>
+                <p class="text-lg font-semibold text-indigo-600 mb-4">Assigned Segment: ${clusterId === -1 ? 'Noise/Outlier' : `Segment ${clusterId}`}</p>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700 w-full">
+            `;
+
+            // Display key features, format numbers for readability
+            const featuresToDisplay = [
+                { key: 'BALANCE', label: 'Balance', format: (val) => `$${val.toFixed(2)}` },
+                { key: 'PURCHASES', label: 'Purchases', format: (val) => `$${val.toFixed(2)}` },
+                { key: 'CASH_ADVANCE', label: 'Cash Advance', format: (val) => `$${val.toFixed(2)}` },
+                { key: 'CREDIT_LIMIT', label: 'Credit Limit', format: (val) => `$${val.toFixed(2)}` },
+                { key: 'PAYMENTS', label: 'Payments', format: (val) => `$${val.toFixed(2)}` },
+                { key: 'MINIMUM_PAYMENTS', label: 'Min. Payments', format: (val) => `$${val.toFixed(2)}` },
+                { key: 'PRC_FULL_PAYMENT', label: 'Full Payment %', format: (val) => `${(val * 100).toFixed(1)}%` },
+                { key: 'TENURE', label: 'Tenure (Months)', format: (val) => `${Math.round(val)}` },
+                { key: 'PURCHASES_FREQUENCY', label: 'Purchases Freq.', format: (val) => val.toFixed(2) },
+                { key: 'CASH_ADVANCE_FREQUENCY', label: 'Cash Advance Freq.', format: (val) => val.toFixed(2) },
+            ];
+
+            featuresToDisplay.forEach(feature => {
+                const value = dataPoint[feature.key];
+                profileHtml += `
+                    <div class="flex justify-between items-center border-b border-gray-100 py-1">
+                        <span class="font-medium">${feature.label}:</span>
+                        <span class="text-right">${feature.format(value)}</span>
+                    </div>
+                `;
             });
 
-            document.getElementById('pcaChart').on('plotly_click', function(data) {
-                const point = data.points[0];
-                const index = point.pointNumber;
-                document.getElementById('custId').textContent = data[index].CUST_ID || 'N/A';
-                document.getElementById('balance').textContent = `$${data[index].BALANCE.toFixed(2)}` || 'N/A';
-                document.getElementById('purchases').textContent = `$${data[index].PURCHASES.toFixed(2)}` || 'N/A';
-                document.getElementById('creditUsage').textContent = `${data[index].CREDIT_USAGE_RATIO.toFixed(2)}` || 'N/A';
-                document.getElementById('cluster').textContent = data[index].Cluster || 'N/A';
-                console.log('Clicked point:', index, data[index]);
-            });
-        }).catch(error => {
-            console.error('CSV load error:', error);
-            showError('Failed to load CSV: ' + error.message);
-            updateDebug('Check console for details');
+            profileHtml += `</div>`;
+            profileContentDiv.innerHTML = profileHtml;
+        }
+
+        // Simple random seed function (not cryptographically secure, just for simulation)
+        // Source: https://stackoverflow.com/questions/521295/javascript-need-a-random-number-generator-that-produces-a-specific-sequence-on-a-given-seed
+        (function(global, factory) {
+            typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+            typeof define === 'function' && define.amd ? define(['exports'], factory) :
+            (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.Math));
+        }(this, (function (exports) { 'use strict';
+            var seed = 0;
+            var random = function() {
+                var x = Math.sin(seed++) * 10000;
+                return x - Math.floor(x);
+            };
+            exports.seedrandom = function(s) { seed = s; };
+            exports.random = random;
+            Object.defineProperty(exports, '__esModule', { value: true });
+        })));
+
+        // Initial simulation on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('runSegmentationBtn').click(); // Trigger the simulation on load
         });
     </script>
 </body>
