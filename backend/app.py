@@ -5,10 +5,14 @@ import pandas as pd
 import os
 
 app = Flask(__name__)
-CORS(app) # Enable CORS for all routes
+# CORS will be configured on Azure App Service, but it's good practice to have it here too
+# for local development or if Azure's CORS isn't fully configured.
+# We will explicitly allow the Render frontend URL on Azure App Service.
+CORS(app)
 
 # Define the path to your clustered CSV file
-# Make sure 'clustered_credit_card_data.csv' is in the same directory as app.py
+# On Azure App Service, files are typically deployed relative to the application root.
+# The `os.path.dirname(__file__)` will point to the directory containing app.py (i.e., 'backend/')
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), 'clustered_credit_card_data.csv')
 
 @app.route('/api/customer_data', methods=['GET'])
@@ -37,6 +41,6 @@ def get_customer_data():
         return jsonify({"error": "An internal server error occurred.", "details": str(e)}), 500
 
 if __name__ == '__main__':
-    # Use 0.0.0.0 for host to make it accessible from outside the container in Render
-    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
-
+    # This block is for local development only.
+    # Azure App Service will use Gunicorn to run the app.
+    app.run(debug=True, host='0.0.0.0', port=os.environ.get('PORT', 5000))
