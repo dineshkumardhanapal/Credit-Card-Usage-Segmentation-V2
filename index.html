@@ -61,6 +61,20 @@
             border-color: #6366f1; /* Indigo 500 when active */
             background-color: #eef2ff; /* Light indigo background when active */
         }
+        /* Style for the search input */
+        .customer-search-input {
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            width: 100%;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .customer-search-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
         /* Responsive adjustments for smaller screens */
         @media (max-width: 768px) {
             .grid-cols-1.lg\:grid-cols-3 {
@@ -89,6 +103,13 @@
         <section id="cluster-visualization-section" class="card lg:col-span-2">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Customer Segments (PCA Visualization)</h2>
             <p class="text-gray-700 text-sm mb-4">Click on a data point to view the customer's profile.</p>
+
+            <!-- Customer Search/Filter Section -->
+            <div class="mb-4 flex flex-col sm:flex-row gap-2">
+                <input type="text" id="customerSearch" placeholder="Search Customer ID (e.g., C12345)" class="customer-search-input flex-grow">
+                <button id="clearSelectionBtn" class="btn-primary flex-shrink-0">Clear Selection</button>
+            </div>
+
             <div id="loading-indicator" class="text-center text-indigo-600 font-medium py-4">
                 <p>Loading data from file...</p>
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mt-4"></div>
@@ -109,7 +130,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
                 <p class="text-gray-500">Select a Customer</p>
-                <p class="text-gray-500 text-sm">Click on a point in the chart to see details here.</p>
+                <p class="text-gray-500 text-sm">Click on a point in the chart or search above.</p>
             </div>
         </section>
     </main>
@@ -124,6 +145,7 @@
 
         let clusterScatterChartInstance = null;
         let allCustomerData = []; // Store all data points from the file
+        let highlightedCustomerId = null; // Stores the CUST_ID of the currently selected customer
 
         // Feature names for display (from your dataset)
         const featureDisplayNames = {
@@ -156,9 +178,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
                 <p class="text-gray-500">Select a Customer</p>
-                <p class="text-gray-500 text-sm">Click on a point in the chart to see details here.</p>
+                <p class="text-gray-500 text-sm">Click on a point in the chart or search above.</p>
             `;
             document.getElementById('segment-profile-content').classList.remove('active');
+            document.getElementById('customerSearch').value = ''; // Clear search input on refresh
+            highlightedCustomerId = null; // Clear highlighted customer
 
             try {
                 const response = await fetch(DATA_FILE_URL);
@@ -168,7 +192,7 @@
                 allCustomerData = await response.json();
 
                 // Extract PCA components and cluster labels for Chart.js
-                const pcaComponents = allCustomerData.map(d => ({ x: d.PC1, y: d.PC2 }));
+                const pcaComponents = allCustomerData.map(d => ({ x: d.PC1, y: d.PC2, cust_id: d.CUST_ID })); // Include CUST_ID
                 const clusterLabels = allCustomerData.map(d => d.Cluster);
 
                 renderClusterScatterPlot(pcaComponents, clusterLabels);
@@ -186,7 +210,7 @@
 
         /**
          * Renders a scatter plot of clusters using Chart.js.
-         * @param {Array<object>} dataPoints - Array of objects with x, y properties (PCA components).
+         * @param {Array<object>} dataPoints - Array of objects with x, y, and cust_id properties (PCA components).
          * @param {Array<number>} clusterLabels - Array of cluster assignments for each data point (DBSCAN labels).
          */
         function renderClusterScatterPlot(dataPoints, clusterLabels) {
@@ -201,7 +225,7 @@
 
             const datasets = uniqueClusters.map(clusterId => {
                 const pointsInCluster = dataPoints.filter((_, idx) => clusterLabels[idx] === clusterId);
-                const data = pointsInCluster.map(p => ({ x: p.x, y: p.y }));
+                const data = pointsInCluster.map(p => ({ x: p.x, y: p.y, cust_id: p.cust_id })); // Ensure cust_id is passed to data
 
                 // Define a more vibrant and distinct color palette
                 const colors = [
@@ -242,14 +266,29 @@
                     labelText = `Segment ${clusterId}`;
                 }
 
+                // Apply highlighting if a customer is selected
+                const pointBackgroundColors = data.map(point =>
+                    point.cust_id === highlightedCustomerId ? 'rgba(0, 0, 0, 1)' : backgroundColor // Black for highlighted
+                );
+                const pointBorderColors = data.map(point =>
+                    point.cust_id === highlightedCustomerId ? 'rgba(255, 255, 0, 1)' : borderColor // Yellow border for highlighted
+                );
+                const pointRadii = data.map(point =>
+                    point.cust_id === highlightedCustomerId ? 10 : 5 // Larger radius for highlighted
+                );
+                const pointBorderWidths = data.map(point =>
+                    point.cust_id === highlightedCustomerId ? 3 : 1 // Thicker border for highlighted
+                );
+
+
                 return {
                     label: labelText,
                     data: data,
-                    backgroundColor: backgroundColor,
-                    borderColor: borderColor,
-                    borderWidth: 1,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
+                    backgroundColor: pointBackgroundColors, // Use array for individual point colors
+                    borderColor: pointBorderColors,       // Use array for individual point borders
+                    borderWidth: pointBorderWidths,       // Use array for individual point border widths
+                    pointRadius: pointRadii,              // Use array for individual point radii
+                    pointHoverRadius: 12,                 // Consistent hover radius
                     // Store original index to retrieve full data later
                     originalIndices: dataPoints.map((p, idx) => clusterLabels[idx] === clusterId ? idx : -1).filter(idx => idx !== -1)
                 };
@@ -315,7 +354,9 @@
                                     const label = context.dataset.label || '';
                                     const x = context.parsed.x.toFixed(2);
                                     const y = context.parsed.y.toFixed(2);
-                                    return `${label} (PC1: ${x}, PC2: ${y})`;
+                                    // Add CUST_ID to tooltip if available
+                                    const custId = context.raw.cust_id ? ` (ID: ${context.raw.cust_id})` : '';
+                                    return `${label} (PC1: ${x}, PC2: ${y})${custId}`;
                                 }
                             },
                             backgroundColor: 'rgba(0, 0, 0, 0.7)', // Darker tooltip background
@@ -336,14 +377,58 @@
 
                             if (originalDataIndex !== undefined) {
                                 const selectedDataPoint = allCustomerData[originalDataIndex];
-                                const selectedClusterId = selectedDataPoint.Cluster;
-                                displaySegmentProfile(selectedDataPoint, selectedClusterId);
+                                // Set the search input value
+                                document.getElementById('customerSearch').value = selectedDataPoint.CUST_ID;
+                                // Highlight and display profile
+                                filterAndDisplayCustomer(selectedDataPoint.CUST_ID);
                             }
                         }
                     }
                 }
             });
         }
+
+        /**
+         * Updates the chart to highlight a specific customer and displays their profile.
+         * @param {string} customerId - The CUST_ID of the customer to highlight.
+         */
+        function filterAndDisplayCustomer(customerId) {
+            const selectedDataPoint = allCustomerData.find(d => d.CUST_ID === customerId);
+
+            if (selectedDataPoint) {
+                highlightedCustomerId = customerId; // Set global highlighted ID
+                const pcaComponents = allCustomerData.map(d => ({ x: d.PC1, y: d.PC2, cust_id: d.CUST_ID }));
+                const clusterLabels = allCustomerData.map(d => d.Cluster);
+                renderClusterScatterPlot(pcaComponents, clusterLabels); // Re-render chart with highlight
+
+                displaySegmentProfile(selectedDataPoint, selectedDataPoint.Cluster);
+            } else {
+                // If customer not found, clear selection
+                clearCustomerSelection();
+                alert('Customer ID not found. Please enter a valid ID from the dataset.');
+            }
+        }
+
+        /**
+         * Clears the current customer selection and resets the chart/profile.
+         */
+        function clearCustomerSelection() {
+            document.getElementById('customerSearch').value = '';
+            highlightedCustomerId = null;
+            const pcaComponents = allCustomerData.map(d => ({ x: d.PC1, y: d.PC2, cust_id: d.CUST_ID }));
+            const clusterLabels = allCustomerData.map(d => d.Cluster);
+            renderClusterScatterPlot(pcaComponents, clusterLabels); // Re-render without highlight
+
+            document.getElementById('segment-profile-content').innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <p class="text-gray-500">Select a Customer</p>
+                <p class="text-gray-500 text-sm">Click on a point in the chart or search above.</p>
+            `;
+            document.getElementById('segment-profile-content').classList.remove('active');
+        }
+
 
         /**
          * Displays the segment profile based on the selected data point.
@@ -355,14 +440,14 @@
             profileContentDiv.classList.add('active'); // Add active class for styling
 
             let profileHtml = `
-                <h4 class="text-xl font-bold text-gray-800 mb-3">Customer Profile</h4>
+                <h4 class="text-xl font-bold text-gray-800 mb-3">Customer Profile: <span class="text-indigo-700">${dataPoint.CUST_ID}</span></h4>
                 <p class="text-lg font-semibold text-indigo-600 mb-4">Assigned Segment: ${clusterId === -1 ? 'Noise/Outlier' : `Segment ${clusterId}`}</p>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700 w-full">
             `;
 
             // Display all features from the dataPoint object using featureDisplayNames
             for (const key in dataPoint) {
-                if (key !== 'PC1' && key !== 'PC2' && key !== 'Cluster') { // Exclude PCA and Cluster columns
+                if (key !== 'PC1' && key !== 'PC2' && key !== 'Cluster' && key !== 'CUST_ID') { // Exclude PCA, Cluster, CUST_ID columns
                     const label = featureDisplayNames[key] || key; // Use display name or original key
                     const value = dataPoint[key];
                     let formattedValue;
@@ -394,6 +479,20 @@
 
         // Event listener for the refresh button
         document.getElementById('refreshDataBtn').addEventListener('click', fetchDataAndRender);
+
+        // Event listener for customer search input
+        document.getElementById('customerSearch').addEventListener('change', (event) => {
+            const searchTerm = event.target.value.trim();
+            if (searchTerm) {
+                filterAndDisplayCustomer(searchTerm);
+            } else {
+                clearCustomerSelection();
+            }
+        });
+
+        // Event listener for clear selection button
+        document.getElementById('clearSelectionBtn').addEventListener('click', clearCustomerSelection);
+
 
         // Initial data fetch on page load
         document.addEventListener('DOMContentLoaded', fetchDataAndRender);
