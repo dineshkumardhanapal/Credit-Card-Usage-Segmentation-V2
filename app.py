@@ -1,46 +1,64 @@
-# backend/app.py
+# app.py
 from flask import Flask, jsonify
 from flask_cors import CORS
 import pandas as pd
 import os
+import joblib # Import joblib to load the models
 
 app = Flask(__name__)
-# CORS will be configured on Azure App Service, but it's good practice to have it here too
-# for local development or if Azure's CORS isn't fully configured.
-# We will explicitly allow the Render frontend URL on Azure App Service.
 CORS(app)
 
-# Define the path to your clustered CSV file
-# On Azure App Service, files are typically deployed relative to the application root.
-# The `os.path.dirname(__file__)` will point to the directory containing app.py (i.e., 'backend/')
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), 'clustered_credit_card_data.csv')
+# Define paths to the original raw data and the saved models
+ORIGINAL_DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), 'credit_card_data.csv')
+SCALER_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'scaler_model.joblib')
+PCA_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'pca_model.joblib')
+DBSCAN_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'dbscan_model.joblib')
+
+# Load models and original data globally when the app starts
+# This avoids reloading them on every request, improving performance
+try:
+    original_df = pd.read_csv(ORIGINAL_DATA_FILE_PATH)
+    # Handle missing values as done during training
+    original_df.fillna(original_df.mean(numeric_only=True), inplace=True)
+
+    scaler = joblib.load(SCALER_MODEL_PATH)
+    pca = joblib.load(PCA_MODEL_PATH)
+    dbscan = joblib.load(DBSCAN_MODEL_PATH)
+    app.logger.info("ML Models and original data loaded successfully.")
+except FileNotFoundError as e:
+    app.logger.error(f"Required file not found: {e}. Ensure all data and model files are in the root directory.")
+    # Exit or raise an error to prevent the app from starting incorrectly
+    raise SystemExit(f"Startup failed: {e}")
+except Exception as e:
+    app.logger.error(f"Error loading ML models or original data: {e}", exc_info=True)
+    raise SystemExit(f"Startup failed due to ML model/data loading error: {e}")
+
 
 @app.route('/api/customer_data', methods=['GET'])
 def get_customer_data():
     try:
-        # Load the clustered data from CSV
-        df_clustered = pd.read_csv(DATA_FILE_PATH)
+        # Perform preprocessing and clustering on demand
+        # We use the globally loaded original_df and models
+        features = original_df.drop('CUST_ID', axis=1) # Assuming 'CUST_ID' is your customer identifier
 
-        # Ensure 'PC1', 'PC2', and 'Cluster' columns exist
-        # These columns should have been added by your Python script (from the updated guide)
-        required_cols = ['PC1', 'PC2', 'Cluster']
-        if not all(col in df_clustered.columns for col in required_cols):
-            return jsonify({"error": "Missing required columns (PC1, PC2, Cluster) in CSV. Please ensure your Python script adds them."}), 500
+        scaled_features = scaler.transform(features)
+        pca_components = pca.transform(scaled_features)
+        clusters = dbscan.fit_predict(pca_components)
+
+        # Create a DataFrame for the frontend response
+        df_response = original_df.copy()
+        df_response['PC1'] = pca_components[:, 0]
+        df_response['PC2'] = pca_components[:, 1]
+        df_response['Cluster'] = clusters
 
         # Convert the DataFrame to a list of dictionaries (JSON format)
-        # We convert all columns to dictionary, the frontend will pick what to display
-        data_for_frontend = df_clustered.to_dict(orient='records')
+        data_for_frontend = df_response.to_dict(orient='records')
 
         return jsonify(data_for_frontend)
 
-    except FileNotFoundError:
-        return jsonify({"error": f"Data file not found at {DATA_FILE_PATH}. Please ensure 'clustered_credit_card_data.csv' is in the backend directory."}), 404
     except Exception as e:
-        # Log the error for debugging on the server side
-        app.logger.error(f"An error occurred: {e}", exc_info=True)
-        return jsonify({"error": "An internal server error occurred.", "details": str(e)}), 500
+        app.logger.error(f"Error during data processing or API response: {e}", exc_info=True)
+        return jsonify({"error": "An internal server error occurred during data processing.", "details": str(e)}), 500
 
 if __name__ == '__main__':
-    # This block is for local development only.
-    # Azure App Service will use Gunicorn to run the app.
     app.run(debug=True, host='0.0.0.0', port=os.environ.get('PORT', 5000))
