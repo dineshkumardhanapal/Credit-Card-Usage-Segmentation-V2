@@ -1,7 +1,6 @@
 Unlocking Customer Value Through Data-Driven Segmentation
 
-Preview - https://credit-card-usage-segmentation-v2.onrender.com/
-
+Preview - https://credit-card-usagesegmentation.netlify.app
 
 Credit Card Usage Segmentation Develop comprehensive unsupervised learning models to accurately segment credit card customers based on their spending and payment behaviors. By utilizing these models, the institution aims to improve targeted marketing, risk assessment, and overall customer relationship management.
 
